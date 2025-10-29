@@ -544,15 +544,13 @@
       <div style="flex:1">
         <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
           <div class="title">HYBRID MASTER 51 PRO</div>
-          <span class="premium-badge">✨ PREMIUM</span>
+          
         </div>
         <div class="small" style="margin-top:4px">
           26 semaines · 3 séances / semaine · Intelligence IA · Cloud sync
         </div>
       </div>
-      <button class="btn premium" onclick="app.showSubscription()">
-        💎 Abonnement
-      </button>
+      
     </div>
 
     <div id="mainContent"></div>
@@ -836,7 +834,7 @@
             <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px">
               <button class="btn" onclick="app.exportData()">💾 Export</button>
               <button class="btn" onclick="app.resetApp()">⚠️ Reset</button>
-              <button class="btn premium" onclick="app.openAICoach()">🤖 Coach IA</button>
+              <button class="btn primary" onclick="app.openAICoach()">🤖 Coach IA</button>
             </div>
           </div>
         `;
@@ -851,11 +849,15 @@
         
         Object.values(this.state.program).forEach(session => {
           const totalSets = session.exercises.reduce((acc, ex) => acc + ex.sets, 0);
-          const card = document.createElement('div');
-          card.className = 'card';
-          card.style.cursor = 'pointer';
           
-          card.innerHTML = `
+          const sessionCard = document.createElement('div');
+          sessionCard.className = 'card';
+          sessionCard.style.marginBottom = '12px';
+          
+          // Header cliquable
+          const header = document.createElement('div');
+          header.style.cursor = 'pointer';
+          header.innerHTML = `
             <div style="display:flex;justify-content:space-between;align-items:center">
               <div style="flex:1">
                 <div style="font-weight:700;color:var(--accent);font-size:15px">
@@ -865,15 +867,51 @@
                   ${session.exercises.length} exercices • ${totalSets} séries
                 </div>
               </div>
-              <div style="font-size:24px">▶️</div>
+              <div style="font-size:24px" id="arrow-${session.key}">▼</div>
             </div>
           `;
           
-          card.onclick = () => this.openSession(session.key);
-          container.appendChild(card);
+          // Liste des exercices (cachée par défaut)
+          const exercisesList = document.createElement('div');
+          exercisesList.id = `exercises-${session.key}`;
+          exercisesList.style.maxHeight = '0';
+          exercisesList.style.overflow = 'hidden';
+          exercisesList.style.transition = 'max-height 0.4s ease';
+          exercisesList.innerHTML = `
+            <div style="margin-top:16px;padding-top:16px;border-top:1px solid rgba(255,255,255,0.06)">
+              ${session.exercises.map((ex, idx) => `
+                <div class="exercise-card" style="margin-bottom:10px">
+                  <div class="exercise-header" onclick="app.openExerciseDetails('${session.key}', ${idx})">
+                    <div style="flex:1">
+                      <div class="exercise-name">${ex.name}</div>
+                      <div class="exercise-meta">
+                        ${ex.sets} × ${ex.reps} • ${ex.weight}kg • ${ex.rest}s • ${ex.tech}
+                      </div>
+                    </div>
+                    <div style="font-size:18px;color:var(--muted)">▶</div>
+                  </div>
+                </div>
+              `).join('')}
+            </div>
+          `;
+          
+          // Toggle au clic
+          header.onclick = () => {
+            const arrow = document.getElementById(`arrow-${session.key}`);
+            if (exercisesList.style.maxHeight === '0px' || !exercisesList.style.maxHeight) {
+              exercisesList.style.maxHeight = '2000px';
+              arrow.textContent = '▲';
+            } else {
+              exercisesList.style.maxHeight = '0';
+              arrow.textContent = '▼';
+            }
+          };
+          
+          sessionCard.appendChild(header);
+          sessionCard.appendChild(exercisesList);
+          container.appendChild(sessionCard);
         });
       }
-
       getBlockName() {
         if (this.state.week <= 5) return 'Bloc 1 - Fondation • Tempo contrôlé';
         if (this.state.week <= 11) return 'Bloc 2 - Surcharge • Rest-Pause';
@@ -934,6 +972,120 @@
         
         this.openModal(html);
       }
+      openExerciseDetails(sessionKey, exerciseIndex) {
+        const session = this.state.program[sessionKey];
+        const exercise = session.exercises[exerciseIndex];
+        const weight = this.state.weights[exercise.name] || exercise.weight;
+        
+        const html = `
+          <h3 style="font-weight:800;color:var(--accent);margin-bottom:20px">
+            ${exercise.name}
+          </h3>
+          
+          <div class="technique-banner">
+            ✨ ${exercise.tech} • ${this.getBlockName().split('•')[1]?.trim() || 'Technique avancée'}
+          </div>
+          
+          <div style="background:rgba(245,158,11,0.08);padding:12px;border-radius:10px;margin-bottom:16px;border:1px solid rgba(245,158,11,0.15)">
+            <div style="color:var(--accent);font-weight:700;font-size:14px">
+              📋 Paramètres : ${exercise.sets} séries × ${exercise.reps} reps • ${weight}kg • ${exercise.rest}s repos
+            </div>
+          </div>
+          
+          <div style="margin-top:16px">
+            ${Array.from({length: exercise.sets}, (_, i) => `
+              <div class="set-row">
+                <div style="font-size:13px;color:var(--muted);font-weight:600">Set ${i+1}</div>
+                <input 
+                  class="set-input weight-input-${sessionKey}-${exerciseIndex}" 
+                  type="number" 
+                  step="0.5" 
+                  value="${weight}" 
+                  placeholder="KG"
+                  data-set="${i+1}"
+                >
+                <input 
+                  class="set-input reps-input-${sessionKey}-${exerciseIndex}" 
+                  type="number" 
+                  value="${typeof exercise.reps === 'number' ? exercise.reps : parseInt(exercise.reps.split('-')[0])}" 
+                  placeholder="REPS"
+                  data-set="${i+1}"
+                >
+                <input 
+                  id="check-${sessionKey}-${exerciseIndex}-${i}" 
+                  class="set-checkbox" 
+                  type="checkbox"
+                  data-rest="${exercise.rest}"
+                >
+                <label for="check-${sessionKey}-${exerciseIndex}-${i}"></label>
+              </div>
+            `).join('')}
+          </div>
+          
+          <div style="display:flex;gap:8px;margin-top:20px;flex-wrap:wrap">
+            <button class="btn primary" onclick="app.saveExercisePerformance('${sessionKey}', ${exerciseIndex}, '${exercise.name}')">
+              💾 Enregistrer
+            </button>
+            <button class="btn" onclick="app.startRestTimer(${exercise.rest}, '${exercise.name}')">
+              ⏱️ Démarrer repos
+            </button>
+            <button class="btn" onclick="app.closeModal()">
+              Fermer
+            </button>
+          </div>
+        `;
+        
+        this.openModal(html);
+        
+        // Setup checkboxes
+        setTimeout(() => {
+          document.querySelectorAll(`#check-${sessionKey}-${exerciseIndex}-0`).forEach(checkbox => {
+            checkbox.parentElement.querySelectorAll('.set-checkbox').forEach(cb => {
+              cb.addEventListener('change', (e) => {
+                if (e.target.checked) {
+                  if (navigator.vibrate) navigator.vibrate(50);
+                  const rest = parseInt(e.target.dataset.rest) || 90;
+                  this.startRestTimer(rest, exercise.name);
+                }
+              });
+            });
+          });
+        }, 100);
+      }
+
+      saveExercisePerformance(sessionKey, exerciseIndex, exerciseName) {
+        const weightInputs = document.querySelectorAll(`.weight-input-${sessionKey}-${exerciseIndex}`);
+        const repsInputs = document.querySelectorAll(`.reps-input-${sessionKey}-${exerciseIndex}`);
+        
+        const sets = [];
+        for (let i = 0; i < Math.min(weightInputs.length, repsInputs.length); i++) {
+          const w = parseFloat(weightInputs[i].value) || 0;
+          const r = parseInt(repsInputs[i].value) || 0;
+          if (r > 0) sets.push({ w, r });
+        }
+        
+        if (sets.length === 0) {
+          this.showToast('⚠️ Entrez au moins une répétition', 'error');
+          return;
+        }
+        
+        const best = sets.reduce((a, b) => b.r > a.r ? b : a);
+        
+        if (!this.state.hist[exerciseName]) this.state.hist[exerciseName] = [];
+        this.state.hist[exerciseName].push({
+          week: this.state.week,
+          weight: best.w,
+          reps: best.r,
+          ts: Date.now(),
+          allSets: sets
+        });
+        
+        this.state.weights[exerciseName] = best.w;
+        this.saveState();
+        this.updateStatistics();
+        this.showToast(`✅ ${exerciseName}: ${best.r} reps @ ${best.w}kg`, 'success');
+        this.closeModal();
+      }
 
       startSession(sessionKey) {
         this.showToast('🏋️ Séance démarrée ! Bonne chance !', 'success');
@@ -992,99 +1144,17 @@
               Coach IA Personnel
             </h3>
             <p style="color:var(--muted);margin-bottom:24px;max-width:500px;margin-left:auto;margin-right:auto">
-              Obtenez des recommandations personnalisées basées sur vos performances, 
-              votre progression et vos objectifs. L'IA analyse vos données en temps réel.
+              Fonctionnalité en cours de développement. Bientôt disponible avec des recommandations personnalisées !
             </p>
-            <div class="premium-badge" style="display:inline-flex;margin-bottom:20px">
-              ✨ FONCTIONNALITÉ PREMIUM
-            </div>
-            <div style="background:rgba(245,158,11,0.1);padding:20px;border-radius:16px;border:1px solid rgba(245,158,11,0.2);margin-top:20px">
-              <div style="font-weight:700;margin-bottom:12px;color:var(--accent)">
-                Analyse IA incluant:
-              </div>
-              <ul style="text-align:left;max-width:400px;margin:0 auto;color:var(--muted);line-height:1.8">
-                <li>🎯 Suggestions de poids optimales</li>
-                <li>📊 Détection de plateau et solutions</li>
-                <li>⚡ Prédiction de performance</li>
-                <li>🔄 Ajustement automatique du programme</li>
-                <li>💪 Analyse de récupération musculaire</li>
-              </ul>
-            </div>
-            <button class="btn premium" onclick="app.closeModal()" style="margin-top:24px">
-              Activer Coach IA
+            <button class="btn primary" onclick="app.closeModal()" style="margin-top:24px">
+              Compris
             </button>
           </div>
         `;
         this.openModal(html);
       }
 
-      showSubscription() {
-        const html = `
-          <div style="text-align:center;padding:40px 20px">
-            <div style="font-size:64px;margin-bottom:20px">💎</div>
-            <h3 style="font-weight:900;color:var(--accent);margin-bottom:16px;font-size:28px">
-              HYBRID MASTER 51 PRO
-            </h3>
-            <div class="premium-badge" style="display:inline-flex;margin-bottom:24px">
-              ✨ ABONNEMENT ACTIF
-            </div>
-            
-            <div style="background:rgba(245,158,11,0.1);padding:24px;border-radius:16px;border:1px solid rgba(245,158,11,0.2);margin-bottom:24px">
-              <div style="font-size:48px;font-weight:900;background:var(--premium-gold);-webkit-background-clip:text;background-clip:text;color:transparent">
-                20€<span style="font-size:24px">/mois</span>
-              </div>
-              <div style="color:var(--muted);margin-top:8px">
-                Prochain renouvellement: ${new Date(this.state.subscription.validUntil).toLocaleDateString('fr-FR')}
-              </div>
-            </div>
-
-            <div style="text-align:left;max-width:500px;margin:0 auto 24px">
-              <div style="font-weight:700;margin-bottom:16px;color:var(--accent);text-align:center">
-                ✨ Inclus dans votre abonnement:
-              </div>
-              
-              <div style="display:grid;gap:12px">
-                <div style="display:flex;align-items:start;gap:12px;padding:12px;background:rgba(255,255,255,0.02);border-radius:10px">
-                  <div style="font-size:24px">🤖</div>
-                  <div>
-                    <div style="font-weight:700">Coach IA Personnel</div>
-                    <div class="small">Recommandations intelligentes</div>
-                  </div>
-                </div>
-
-                <div style="display:flex;align-items:start;gap:12px;padding:12px;background:rgba(255,255,255,0.02);border-radius:10px">
-                  <div style="font-size:24px">☁️</div>
-                  <div>
-                    <div style="font-weight:700">Synchronisation Cloud</div>
-                    <div class="small">Accès multi-appareils</div>
-                  </div>
-                </div>
-
-                <div style="display:flex;align-items:start;gap:12px;padding:12px;background:rgba(255,255,255,0.02);border-radius:10px">
-                  <div style="font-size:24px">📊</div>
-                  <div>
-                    <div style="font-weight:700">Analytics Avancés</div>
-                    <div class="small">Graphiques et prédictions IA</div>
-                  </div>
-                </div>
-
-                <div style="display:flex;align-items:start;gap:12px;padding:12px;background:rgba(255,255,255,0.02);border-radius:10px">
-                  <div style="font-size:24px">💾</div>
-                  <div>
-                    <div style="font-weight:700">Backup Illimité</div>
-                    <div class="small">Historique complet sans limite</div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <button class="btn premium" onclick="app.closeModal()">
-              Retour
-            </button>
-          </div>
-        `;
-        this.openModal(html);
-      }
+      // showSubscription() a été complètement supprimée
 
       exportData() {
         try {
@@ -1184,8 +1254,7 @@
       }
     }
 
-    let app;
-    document.addEventListener('DOMContentLoaded', () => {
+    let apdocument.addEventListener('DOMContentLoaded', () => {
       app = new HybridMasterPro();
       window.app = app;
       console.log('🏋️ HYBRID MASTER 51 PRO v2.0.0 - Chargé avec succès');
